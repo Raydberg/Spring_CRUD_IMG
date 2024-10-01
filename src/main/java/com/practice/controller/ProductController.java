@@ -1,89 +1,80 @@
 package com.practice.controller;
-
 import com.practice.utils.FileUploadUtil;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import com.practice.model.Product;
 import com.practice.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.view.RedirectView;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-@Controller
-
+@RestController
+@RequestMapping("/products")
 public class ProductController {
     @Autowired
     private ProductService productService;
 
     @GetMapping("/")
-    public String viewHomePage(Model model) {
-        return findPaginated(1, "id", "asc", model);
+    public List<Product> viewHomePage() {
+        return productService.findPaginated(1, 3, "id", "asc").getContent();
     }
 
-    @RequestMapping("index")
-    public String Project1(Model model, @Param("ketword") String keyword) {
-        List<Product> listProduct = productService.getAllProduct(keyword);
-        model.addAttribute("listProduct", listProduct);
-        model.addAttribute("keyword", keyword);
-        return "index";
+    @GetMapping("/index")
+    public List<Product> getProducts(@RequestParam(required = false) String keyword) {
+        return productService.getAllProduct(keyword);
     }
 
     @GetMapping("/showNewProductForm")
-    public String Project2(Model model) {
-        Product product = new Product();
-        model.addAttribute("product", product);
-        return "Add_Product";
+    public Product createNewProduct() {
+        return new Product();
     }
 
     @PostMapping("/saveProduct")
-    public RedirectView saveProduct(@ModelAttribute("product") Product product,
-                                    @RequestParam("image") MultipartFile multipartFile) throws IOException {
+    public Product saveProduct(@ModelAttribute("product") Product product,
+                               @RequestParam("image") MultipartFile multipartFile) throws IOException {
         String fileName = StringUtils.cleanPath(multipartFile.getOriginalFilename());
         product.setPhotos(fileName);
-        Product saveProduct = productService.saveProduct(product);
-        String uploadDir = "product-photos/" + saveProduct.getId();
+        Product savedProduct = productService.saveProduct(product);
+        String uploadDir = "product-photos/" + savedProduct.getId();
         FileUploadUtil.saveFile(uploadDir, fileName, multipartFile);
-        return new RedirectView("/", true);
+        return savedProduct;
     }
 
     @GetMapping("/showFormForUpdate/{id}")
-    public String UpdateImage(@PathVariable(value = "id") long id, Model model) {
-        Product product = productService.getProductById(id);
-        model.addAttribute("product", product);
-        return "Edit_product";
+    public Product updateImage(@PathVariable(value = "id") long id) {
+        return productService.getProductById(id);
     }
 
-    @GetMapping("/deleteProduct/{id}")
-    public String deleteProduct(@PathVariable(value = "id") long id) {
-        this.productService.deleteProductById(id);
-        return "redirect:/";
-
+    @DeleteMapping("/deleteProduct/{id}")
+    public ResponseEntity<Void> deleteProduct(@PathVariable(value = "id") long id) {
+        productService.deleteProductById(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/page/{pageNo}")
-    public String findPaginated(@PathVariable(value = "pageNo") int pageNo,
-                                @RequestParam("sortField") String sortField, @RequestParam("sortDir") String sortDir,
-                                Model model) {
+    public Map<String, Object> findPaginated(@PathVariable(value = "pageNo") int pageNo,
+                                             @RequestParam("sortField") String sortField,
+                                             @RequestParam("sortDir") String sortDir) {
         int pageSize = 3;
         Page<Product> page = productService.findPaginated(pageNo, pageSize, sortField, sortDir);
         List<Product> listProduct = page.getContent();
-        model.addAttribute("currentPage", pageNo);
-        model.addAttribute("totalPages", page.getTotalPages());
-        model.addAttribute("totalItems", page.getTotalElements());
-        model.addAttribute("sortField", sortField);
-        model.addAttribute("sortDir", sortDir);
-        model.addAttribute("reverseSortDir", sortDir.equals("asc") ? "desc" : "asc");
-        model.addAttribute("listProduct", listProduct);
-        return "index";
 
+        Map<String, Object> response = new HashMap<>();
+        response.put("currentPage", pageNo);
+        response.put("totalPages", page.getTotalPages());
+        response.put("totalItems", page.getTotalElements());
+        response.put("sortField", sortField);
+        response.put("sortDir", sortDir);
+        response.put("reverseSortDir", sortDir.equals("asc") ? "desc" : "asc");
+        response.put("listProduct", listProduct);
 
+        return response;
     }
 
 
